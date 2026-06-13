@@ -163,6 +163,27 @@ async function api(method, params = {}, { fetchTimeoutMs = 20000 } = {}) {
   return data.result;
 }
 
+/** Like api() but posts multipart/form-data — used for file uploads.
+ * fetch sets the multipart boundary itself when body is a FormData, so we
+ * must NOT set Content-Type here. Longer default timeout for the upload. */
+async function apiUpload(method, form, { fetchTimeoutMs = 60000 } = {}) {
+  const token = getToken();
+  const url = `https://api.telegram.org/bot${token}/${method}`;
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), fetchTimeoutMs);
+  let res;
+  try {
+    res = await fetch(url, { method: 'POST', body: form, signal: ac.signal });
+  } finally {
+    clearTimeout(t);
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!data.ok) {
+    throw new Error(`Telegram ${method} failed: ${data.error_code || res.status} ${data.description || ''}`.trim());
+  }
+  return data.result;
+}
+
 /** Verify the token. Returns the bot's info ({ id, username, ... }). */
 export function getMe() {
   return api('getMe');
@@ -292,6 +313,59 @@ export async function sendMessage(text, opts = {}) {
   }
   logBridge('SEND', `chat=${chatId} len=${full.length} chunks=${chunks.length} → "${preview(full)}"`);
   return results;
+}
+
+/**
+ * Send a local file to you (or an explicit chatId) — as a photo or a document.
+ *
+ * Two Telegram methods, two behaviours:
+ *   • sendPhoto    — shows inline in the chat, but Telegram re-compresses the
+ *                    image and strips metadata (great for screenshots/previews,
+ *                    lossy for originals).
+ *   • sendDocument — delivers the exact bytes, any file type, preserved as-is.
+ *
+ * Default routing: common image types (.jpg/.jpeg/.png/.webp/.gif) are sent as
+ * a photo; everything else as a document. Force either with opts.as
+ * ('photo' | 'document') — e.g. send a PNG as a document to keep it lossless.
+ * Telegram caps bot uploads at 50 MB.
+ *
+ * @param {string} filePath  path to a local file (absolute or relative to cwd)
+ * @param {object} [opts]    { chatId, caption, as: 'photo'|'document', parseMode }
+ * @returns {Promise<object>} the sent Message
+ */
+export async function sendFile(filePath, opts = {}) {
+  const chatId = opts.chatId || getChatId();
+  if (!chatId) throw new Error('No chat id: set TELEGRAM_CHAT_ID in .env or pass { chatId }');
+  const abs = path.resolve(filePath);
+  if (!fs.existsSync(abs)) throw new Error(`file not found: ${abs}`);
+  const buf = fs.readFileSync(abs);
+  const sizeMB = buf.length / (1024 * 1024);
+  if (sizeMB > 50) throw new Error(`file is ${sizeMB.toFixed(1)} MB — Telegram bot uploads are capped at 50 MB`);
+
+  const name = path.basename(abs);
+  const ext = path.extname(abs).toLowerCase();
+  const isImage = ['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext);
+  const as = opts.as || (isImage ? 'photo' : 'document');
+  const method = as === 'photo' ? 'sendPhoto' : 'sendDocument';
+  const field = as === 'photo' ? 'photo' : 'document';
+
+  const form = new FormData();
+  form.append('chat_id', String(chatId));
+  if (opts.caption) {
+    form.append('caption', String(opts.caption));
+    const parseMode = opts.parseMode === undefined ? 'Markdown' : opts.parseMode;
+    if (parseMode) form.append('parse_mode', parseMode);
+  }
+  form.append(field, new Blob([buf]), name);
+
+  try {
+    const result = await apiUpload(method, form);
+    logBridge('SENDFILE', `chat=${chatId} ${as} ${name} ${sizeMB.toFixed(2)}MB`);
+    return result;
+  } catch (e) {
+    logBridge('SENDFILE.fail', `chat=${chatId} ${name} err="${e.message}"`);
+    throw e;
+  }
 }
 
 // ---- offset persistence ---------------------------------------------------

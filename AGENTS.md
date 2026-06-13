@@ -136,6 +136,27 @@ printf '%s' "your reply text" | node telegram-send.mjs   # Markdown; --plain for
 Always reply to every message — at minimum acknowledge receipt, and send a final
 result when done. Keep replies short and mobile-friendly.
 
+**Sending a file back (photo or document).** When the owner asks for a file —
+"send me that PDF / the chart / a screenshot" — don't paste a wall of text or a
+raw path; upload the file with `--file`:
+
+```bash
+node telegram-send.mjs --file ./report.pdf --caption "this quarter's numbers"
+node telegram-send.mjs --file ./chart.png                      # auto-sent as a photo
+node telegram-send.mjs --file ./logo.png --document            # force lossless document
+```
+
+Routing: image types (`.jpg/.jpeg/.png/.webp/.gif`) go as a **photo** (shown
+inline, but Telegram re-compresses them); everything else goes as a
+**document** (exact bytes preserved). Force either way with `--photo` /
+`--document` (alias `--as photo|document`). `--caption` adds a caption (Markdown,
+or `--plain` for literal); the caption can also come from a positional arg or
+stdin. Telegram caps bot uploads at **50 MB**. Programmatically, `telegram.mjs`
+exports `sendFile(filePath, { chatId, caption, as, parseMode })`.
+
+Never send `.env`, tokens, or other secrets as a file, and don't echo received
+inbound files straight back unless explicitly asked.
+
 ## Poll output shape
 
 ```jsonc

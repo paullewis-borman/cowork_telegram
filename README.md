@@ -18,7 +18,7 @@ you → Claude   pollUpdates()   (telegram-poll.mjs, run by a scheduled task)
 | File | Role |
 | --- | --- |
 | `telegram.mjs` | Shared library: send, poll, the session lock, `.env` loader, logging. Imported by the three CLIs. |
-| `telegram-send.mjs` | CLI — Claude → you. Send a message (arg or stdin), Markdown with plain-text fallback, 4096-char chunking. |
+| `telegram-send.mjs` | CLI — Claude → you. Send a message (arg or stdin), Markdown with plain-text fallback, 4096-char chunking. Also sends files with `--file` (photo or document). |
 | `telegram-poll.mjs` | CLI — you → Claude. Long-polls for your new messages, prints them as JSON, advances the offset so each is handled exactly once. |
 | `telegram-lock.mjs` | CLI — overlap guard. Keeps one run's lock warm across listen → process → reply so a concurrent scheduled tick yields. |
 | `broker-publish.mjs` | CLI (optional) — commit & push this repo via a [gitbroker](https://github.com/paullewis-borman/gitbroker) service running on your machine, instead of running native git in the sandbox. See [Publishing via gitbroker](#publishing-via-gitbroker-optional). |
@@ -66,6 +66,18 @@ node telegram-send.mjs "Build finished ✅"
 echo "multi-line\nmessage" | node telegram-send.mjs        # from stdin
 node telegram-send.mjs --plain "literal *no* markdown"
 ```
+
+Send yourself a file (photo or document):
+
+```bash
+node telegram-send.mjs --file report.pdf --caption "this quarter's numbers"
+node telegram-send.mjs --file chart.png                     # images auto-sent as a photo
+node telegram-send.mjs --file logo.png --document           # force lossless document
+```
+
+Images (`.jpg/.jpeg/.png/.webp/.gif`) are sent as a photo (inline, re-compressed);
+everything else as a document (exact bytes). Force with `--photo` / `--document`.
+Telegram caps bot uploads at 50 MB. Programmatic: `sendFile(path, { caption, as })`.
 
 Check for new messages from you:
 
