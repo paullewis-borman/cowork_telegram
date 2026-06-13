@@ -1,0 +1,26 @@
+{
+  "name": "cowork-telegram",
+  "version": "1.0.0",
+  "description": "A small, dependency-free two-way Telegram bridge for Cowork (Claude) projects: send messages to yourself and let a scheduled task act on your replies.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "telegram-send": "./telegram-send.mjs",
+    "telegram-poll": "./telegram-poll.mjs",
+    "telegram-lock": "./telegram-lock.mjs"
+  },
+  "scripts": {
+    "send": "node telegram-send.mjs",
+    "poll": "node telegram-poll.mjs --once",
+    "lock:status": "node telegram-lock.mjs status"
+  },
+  "files": [
+    "telegram.mjs",
+    "telegram-send.mjs",
+    "telegram-poll.mjs",
+    "telegram-lock.mjs"
+  ]
+}

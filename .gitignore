@@ -1,0 +1,15 @@
+# Secrets — never commit
+.env
+
+# Local runtime state (regenerated per machine)
+.telegram-offset.json
+.telegram-session.lock
+
+# Inbound files received over Telegram (default inbox dir; local-only)
+inbox/
+
+# Logs
+*.log
+
+# Node
+node_modules/
