@@ -246,6 +246,14 @@ Whether you then **open** it depends on the caption/intent:
   send them back over Telegram unless explicitly asked.
 - Don't delete files in a mounted/permission-gated working tree during an
   unattended run; the lock release is a marker write, never a delete.
+- **No human-in-the-loop actions in an unattended run.** A scheduled poll run has
+  no one watching the Cowork UI, so any action that raises a Cowork UI prompt —
+  a file/dir delete, a folder-access request, a plan/approval gate — will hang
+  silently (the prompt never reaches Telegram) and stall the whole chat. Never
+  attempt such an action. If a request needs one, do **not** try it: reply to the
+  user that it requires the Cowork UI and that they should do it (or grant it)
+  there, then carry on with whatever else you can. (Git deletes go via the host's
+  publish mechanism — e.g. gitbroker running natively — which raises no prompt.)
 
 ## Conversation memory (across runs)
 
