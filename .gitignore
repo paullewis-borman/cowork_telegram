@@ -4,6 +4,7 @@
 # Local runtime state (regenerated per machine)
 .telegram-offset.json
 .telegram-session.lock
+.broker-host
 
 # Inbound files received over Telegram (default inbox dir; local-only)
 inbox/
