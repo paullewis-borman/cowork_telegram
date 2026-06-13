@@ -261,6 +261,9 @@ Whether you then **open** it depends on the caption/intent:
   user that it requires the Cowork UI and that they should do it (or grant it)
   there, then carry on with whatever else you can. (Git deletes go via the host's
   publish mechanism — e.g. gitbroker running natively — which raises no prompt.)
+  In particular, **creating or editing a scheduled task is itself a UI-prompt
+  action** — don't do it from a telegram session; ask the user to make the change
+  in the Cowork UI.
 
 ## Conversation memory (across runs)
 
