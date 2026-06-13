@@ -66,6 +66,13 @@ When the chat goes cold, append a short memory summary, release the lock, and
 write one task-log line. Wrap any long or repo-mutating step in
 `telegram-lock.mjs guard`.
 
+This is an UNATTENDED run: never take an action that raises a Cowork UI prompt
+(file/dir deletes, folder-access requests, plan/approval gates, any permission
+dialog) — the prompt never reaches Telegram, so it hangs silently and stalls the
+chat. If a request needs one, don't attempt it; tell me it requires the Cowork UI
+and to do it (or grant it) there. (Git deletes go via the host publish mechanism,
+which runs native git and raises no prompt — see Safety.)
+
 Project-specific facts:
 - Scripts live in: <PATH TO SCRIPTS, e.g. backend/scripts/ — else repo root>
   (if embedded in a subfolder, set TELEGRAM_BRIDGE_ROOT to the repo root so
