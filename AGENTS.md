@@ -1,5 +1,7 @@
 # AGENTS.md — operating the Telegram bridge
 
+**📍 This is the `cowork_telegram` repo's AGENTS.md** — read it when running the two-way Telegram bridge. Not to be confused with `gitbroker/AGENTS.md` (the git publish broker).
+
 This file tells a **Cowork/Claude agent** how to run the two-way Telegram bridge
 in a scheduled task. It assumes a human has already done the one-time setup in
 [README.md](./README.md) (bot token, chat id, `.env`). If `.env` has no
