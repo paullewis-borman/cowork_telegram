@@ -25,13 +25,12 @@ you → Claude   pollUpdates()   (telegram-poll.mjs, run by a scheduled task)
 
 ## Point an AI agent at this repo (which scenario?)
 
-To add this bridge to a project, open that project in Cowork and tell it, in one
-line:
+To add this bridge to a project, open that project in Cowork and paste it this
+prompt:
 
-> "Add the Telegram bridge from
-> https://github.com/paullewis-borman/cowork_telegram — read its `README.md` and
-> `AGENTS.md`, work out whether I've already set this up on this machine or it's a
-> fresh install, and wire this project up accordingly."
+```text
+Add the Telegram bridge from https://github.com/paullewis-borman/cowork_telegram — read its README.md and AGENTS.md, work out whether I've already set this up on this machine or it's a fresh install, and wire this project up accordingly.
+```
 
 `AGENTS.md` carries the detection recipe. The two cases:
 
