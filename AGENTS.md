@@ -59,10 +59,12 @@ You are the <PROJECT NAME> Telegram bridge — the two-way link between me and
 Cowork over Telegram. Each run, listen for my messages, act on them, and reply
 to me on Telegram. You have no memory of previous runs.
 
-Follow cowork_telegram/AGENTS.md exactly as the operating contract: pick a run
-owner id, do the config check, then run the lock-based listen → handle → reply →
-adaptive-cadence loop, releasing the lock and writing one task-log line when the
-chat goes cold. Wrap any long or repo-mutating step in `telegram-lock.mjs guard`.
+Follow cowork_telegram/AGENTS.md exactly as the operating contract: read the
+conversation memory to recover the thread, pick a run owner id, do the config
+check, then run the lock-based listen → handle → reply → adaptive-cadence loop.
+When the chat goes cold, append a short memory summary, release the lock, and
+write one task-log line. Wrap any long or repo-mutating step in
+`telegram-lock.mjs guard`.
 
 Project-specific facts:
 - Scripts live in: <PATH TO SCRIPTS, e.g. backend/scripts/ — else repo root>
@@ -80,7 +82,21 @@ the run exits quietly, so an enabled task is harmless before setup is finished.
 
 Each scheduled run is stateless — it listens for new messages, acts on them,
 replies, and ends when the chat goes cold. There is no memory between runs; the
-offset file guarantees each message is handled exactly once.
+offset file guarantees each message is handled exactly once. To carry a *little*
+continuity across runs there is a rolling conversation memory — read it at the
+start, append to it at the end (see *Conversation memory* below).
+
+### 0. Recover the thread (conversation memory)
+
+Before doing anything else, read the recent run summaries so you don't restart
+cold mid-conversation:
+
+```bash
+node telegram-context.mjs read --entries 8
+```
+
+It prints the most recent entries (or nothing if there's no log yet). Use it to
+recover what you and the owner were last discussing.
 
 ### 1. Pick a run owner id (once, at the start)
 
@@ -101,7 +117,8 @@ node telegram-poll.mjs --wait 50 --lock --owner <OWNER>
   nothing else, don't message, don't release (it isn't yours).
 - `{"messages":[...]}` (non-empty) → the lock is now **HELD by you**; handle the
   messages (below), reply, then continue in HOT MODE.
-- `{"messages":[]}` → cold; the lock was auto-released. Run
+- `{"messages":[]}` → cold; the lock was auto-released. Nothing happened this
+  run, so there's nothing to remember — just run
   `node telegram-lock.mjs release --owner <OWNER>` and **end the run** (the cron
   floor will check again next tick).
 
@@ -111,8 +128,9 @@ Back-off wait seconds `[30, 60, 120, 240, 300]`, starting at 30:
 - Listen `--wait <current> --lock --owner <OWNER>`.
 - Messages → handle + reply, **reset** the index to 30.
 - Empty → advance one step.
-- A `--wait 300` that returns empty (~5 min silence) → `release --owner <OWNER>`
-  and END the run.
+- A `--wait 300` that returns empty (~5 min silence) → **append a one-line memory
+  summary** of this run (see *Conversation memory*), then `release --owner
+  <OWNER>` and END the run.
 - `{"locked":true}` at any point → STOP (don't release).
 
 ### 4. Keep the lock warm during heavy work
@@ -228,6 +246,31 @@ Whether you then **open** it depends on the caption/intent:
   send them back over Telegram unless explicitly asked.
 - Don't delete files in a mounted/permission-gated working tree during an
   unattended run; the lock release is a marker write, never a delete.
+
+## Conversation memory (across runs)
+
+The poll only fetches **new** messages since the stored offset, so the
+conversational thread is otherwise lost between runs. `telegram-context.mjs`
+keeps a small rolling log of run summaries so each run can pick up where the last
+left off:
+
+```bash
+node telegram-context.mjs read --entries 8          # at run START — recover the thread
+node telegram-context.mjs append --text "<summary>" # at run END (after handling msgs)
+printf '%s' "$SUMMARY" | node telegram-context.mjs append   # …or pipe via stdin
+```
+
+- **Read** at the start of every run (step 0 above).
+- **Append** a 1–3 line summary at the end of any run that actually handled
+  messages — what the owner asked, what you did/decided, anything the next run
+  should know. Do this *before* releasing the lock. (A run that woke to an empty
+  chat handled nothing, so skip the append.)
+- Entries are **newest-first** and auto-trimmed to the most recent
+  `TELEGRAM_CONTEXT_MAX_ENTRIES` (default 30), so the file never bloats.
+- The log is **per-project, local-only runtime state** — it lives at the repo
+  root next to `.env` and is **gitignored** (add `telegram-context.md` to the
+  project's `.gitignore`). Only this *mechanism* (the script + this contract) is
+  shared between projects, never one project's memory.
 
 ## Per-run log line
 

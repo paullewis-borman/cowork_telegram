@@ -6,6 +6,9 @@
 .telegram-session.lock
 .broker-host
 
+# Rolling conversation memory — per-project, local-only (never shared/committed)
+telegram-context.md
+
 # Inbound files received over Telegram (default inbox dir; local-only)
 inbox/
 

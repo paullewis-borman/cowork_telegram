@@ -17,10 +17,11 @@ you → Claude   pollUpdates()   (telegram-poll.mjs, run by a scheduled task)
 
 | File | Role |
 | --- | --- |
-| `telegram.mjs` | Shared library: send, poll, the session lock, `.env` loader, logging. Imported by the three CLIs. |
+| `telegram.mjs` | Shared library: send, poll, the session lock, `.env` loader, logging. Imported by the CLIs. |
 | `telegram-send.mjs` | CLI — Claude → you. Send a message (arg or stdin), Markdown with plain-text fallback, 4096-char chunking. Also sends files with `--file` (photo or document). |
 | `telegram-poll.mjs` | CLI — you → Claude. Long-polls for your new messages, prints them as JSON, advances the offset so each is handled exactly once. |
 | `telegram-lock.mjs` | CLI — overlap guard. Keeps one run's lock warm across listen → process → reply so a concurrent scheduled tick yields. |
+| `telegram-context.mjs` | CLI — conversation memory. Reads/appends a small rolling log of run summaries (`telegram-context.md`, gitignored) so each stateless run can recover the thread. `read [--entries N]` / `append [--text "…"]`. |
 | `broker-publish.mjs` | CLI (optional) — commit & push this repo via a [gitbroker](https://github.com/paullewis-borman/gitbroker) service running on your machine, instead of running native git in the sandbox. See [Publishing via gitbroker](#publishing-via-gitbroker-optional). |
 
 ## Point an AI agent at this repo (which scenario?)
