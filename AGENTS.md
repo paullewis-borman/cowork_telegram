@@ -46,6 +46,36 @@ scheduled poll task. Reuse the chat id (it's just *you*); never reuse the token.
 Follow the README *Setup*: create a bot with BotFather, then capture your chat id
 with `node telegram-poll.mjs --once`. Then create the scheduled task.
 
+## Scheduled-task setup template
+
+Both scenarios end with "create the scheduled task." Here is a ready-to-paste
+template — create one **per project**, on a `*/5 * * * *` (every-5-min) cron,
+which is the floor; the adaptive cadence keeps it hot while you're chatting and
+backs off when quiet. Fill the three `<…>` placeholders and paste the body as
+the task prompt:
+
+```
+You are the <PROJECT NAME> Telegram bridge — the two-way link between me and
+Cowork over Telegram. Each run, listen for my messages, act on them, and reply
+to me on Telegram. You have no memory of previous runs.
+
+Follow cowork_telegram/AGENTS.md exactly as the operating contract: pick a run
+owner id, do the config check, then run the lock-based listen → handle → reply →
+adaptive-cadence loop, releasing the lock and writing one task-log line when the
+chat goes cold. Wrap any long or repo-mutating step in `telegram-lock.mjs guard`.
+
+Project-specific facts:
+- Scripts live in: <PATH TO SCRIPTS, e.g. backend/scripts/ — else repo root>
+  (if embedded in a subfolder, set TELEGRAM_BRIDGE_ROOT to the repo root so
+  state files resolve there, and prefix script paths accordingly).
+- .env (with TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID) lives at the repo root.
+- Task log to append one line per run: <PATH TO TASK LOG, e.g. scheduled-task.log>
+```
+
+Notes: each project needs its **own** bot token (one bot ≠ many projects — see
+Scenario A); the chat id is just *you* and is reused. If `.env` is unconfigured
+the run exits quietly, so an enabled task is harmless before setup is finished.
+
 ## The run lifecycle
 
 Each scheduled run is stateless — it listens for new messages, acts on them,
