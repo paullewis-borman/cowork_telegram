@@ -23,6 +23,25 @@ you → Claude   pollUpdates()   (telegram-poll.mjs, run by a scheduled task)
 | `telegram-lock.mjs` | CLI — overlap guard. Keeps one run's lock warm across listen → process → reply so a concurrent scheduled tick yields. |
 | `broker-publish.mjs` | CLI (optional) — commit & push this repo via a [gitbroker](https://github.com/paullewis-borman/gitbroker) service running on your machine, instead of running native git in the sandbox. See [Publishing via gitbroker](#publishing-via-gitbroker-optional). |
 
+## Point an AI agent at this repo (which scenario?)
+
+To add this bridge to a project, open that project in Cowork and tell it, in one
+line:
+
+> "Add the Telegram bridge from
+> https://github.com/paullewis-borman/cowork_telegram — read its `README.md` and
+> `AGENTS.md`, work out whether I've already set this up on this machine or it's a
+> fresh install, and wire this project up accordingly."
+
+`AGENTS.md` carries the detection recipe. The two cases:
+
+- **Fresh install** — first time on this machine: do *Setup* below (create a bot
+  with BotFather, capture your chat id).
+- **Already used here** — you've run the bridge for another project. You reuse
+  the scripts and your **existing chat id**, but **create a new bot** for this
+  project. Telegram's `getUpdates` is **per-bot**, so two projects must never
+  share one token — they'd steal each other's messages. Same you, different bot.
+
 ## Setup
 
 1. **Create a bot.** Message [@BotFather](https://t.me/BotFather) → `/newbot`, copy the token.

@@ -17,6 +17,33 @@ scripts are embedded in a subfolder (e.g. `backend/scripts/`), prefix the path
 accordingly and set `TELEGRAM_BRIDGE_ROOT` so state files resolve to the project
 root.
 
+## First: which scenario are you in? (setup vs. running)
+
+If this project already has a working `.env` (with `TELEGRAM_BOT_TOKEN` **and**
+`TELEGRAM_CHAT_ID`) and the scripts are present, it's set up — go straight to
+*The run lifecycle*. Otherwise you're wiring it in. Confirm with
+`node telegram-poll.mjs --once --no-persist`: an unset-token / empty-chat-id
+error means it isn't configured yet. Two cases — detect which **before** acting:
+
+**Scenario A — you've used this bridge on this machine before** (another project
+already runs a bot). The *code* is known and your Telegram account (the chat id)
+already exists; only this project is new.
+
+> ⚠️ **One bot ≠ many projects.** Telegram's `getUpdates` offset is **per-bot and
+> global** — two pollers sharing one bot token will steal each other's messages
+> unpredictably. So **each project gets its own bot.** "Already installed" saves
+> you the learning curve, not the bot.
+
+→ Steps: (1) create a **new** bot in [@BotFather](https://t.me/BotFather)
+(`/newbot`) for this project; (2) copy the four `.mjs` scripts into this repo
+(set `TELEGRAM_BRIDGE_ROOT` if you embed them in a subfolder); (3) put the **new
+token** plus your **existing chat id** in this project's `.env`; (4) create the
+scheduled poll task. Reuse the chat id (it's just *you*); never reuse the token.
+
+**Scenario B — fresh install on this machine** (no bridge anywhere yet). →
+Follow the README *Setup*: create a bot with BotFather, then capture your chat id
+with `node telegram-poll.mjs --once`. Then create the scheduled task.
+
 ## The run lifecycle
 
 Each scheduled run is stateless — it listens for new messages, acts on them,
