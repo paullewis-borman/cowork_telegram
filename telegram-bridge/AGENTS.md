@@ -1,6 +1,7 @@
 # AGENTS.md — operating the Telegram bridge
 
-**📍 This is the `cowork_telegram` repo's AGENTS.md** — read it when running the two-way Telegram bridge. Not to be confused with `gitbroker/AGENTS.md` (the git publish broker).
+**📍 This is the `telegram-bridge` utility's contract** — read it when running the
+two-way Telegram bridge.
 
 This file tells a **Cowork/Claude agent** how to run the two-way Telegram bridge
 in a scheduled task. It assumes a human has already done the one-time setup in
@@ -8,35 +9,46 @@ in a scheduled task. It assumes a human has already done the one-time setup in
 `TELEGRAM_BOT_TOKEN` or an empty `TELEGRAM_CHAT_ID`, the bridge isn't configured
 — exit quietly and do nothing.
 
-> **Portability:** a host project should not duplicate this contract. Point its
-> own project memory (e.g. `CLAUDE.md`) at this file with a single line —
-> *"Telegram bridge → see `cowork_telegram/AGENTS.md`"* — and keep only
-> project-specific facts (the scheduled-task name, where the scripts are
-> embedded) locally.
+## Self-scoping convention (read first when vendoring)
 
-> **When embedding into a host project — keep this file in its own named
-> folder.** `AGENTS.md` is a magic, auto-discovered filename that agents treat as
-> *whole-project* instructions. If you vendor two utilities that each ship an
-> `AGENTS.md` into the **same** folder, they collide and an agent merges their
-> contracts. The fix: drop this utility under a folder named for it and keep its
-> `AGENTS.md` inside —
->
-> ```
-> tools/
->   telegram-bridge/AGENTS.md   ← this file
->   gitbroker/AGENTS.md         ← the other utility, separate folder
-> ```
->
-> Nested AGENTS.md is nearest-wins: an agent reads only the one closest to what
-> it's touching, never sibling files. **Hard rule: never flatten two utilities
-> into one shared folder** — that is exactly what re-creates the clash. The host's
-> root `AGENTS.md`/`CLAUDE.md` should point explicitly at each path (a vendored
-> `AGENTS.md` in a subfolder is not always auto-discovered).
+This utility ships as a **single self-named folder** (`telegram-bridge/`) that
+contains everything it needs: this `AGENTS.md`, the `.mjs` scripts, `.env.example`,
+and (at runtime) its own `.env` and local state. To add it to a host project,
+**copy the whole folder in and leave it intact** — don't scatter its files, and
+never merge it with another utility.
 
-All commands assume you run from the bridge root (where `.env` lives). If the
-scripts are embedded in a subfolder (e.g. `backend/scripts/`), prefix the path
-accordingly and set `TELEGRAM_BRIDGE_ROOT` so state files resolve to the project
-root.
+Why the folder matters: `AGENTS.md` is a magic, auto-discovered filename that
+agents treat as *whole-project* instructions. If two vendored utilities each drop
+an `AGENTS.md` into the **same** folder, they collide and an agent merges their
+contracts. Keeping each utility in its own named folder prevents that, and the
+pattern scales to any number of utilities:
+
+```
+<host-project>/
+  telegram-bridge/AGENTS.md  ← this folder
+  <other-utility>/AGENTS.md  ← a different utility, its own named folder
+  <another-utility>/AGENTS.md← …and so on, one folder each
+```
+
+Nested `AGENTS.md` is **nearest-wins**: an agent reads only the one closest to
+the files it's touching, never sibling folders — so any number of self-scoped
+utilities coexist without clashing. **Hard rule: one utility, one folder; never
+flatten two into a shared folder** — that is exactly what re-creates the clash.
+
+Point the host project's root `CLAUDE.md`/`AGENTS.md` at this file with a single
+line — *"Telegram bridge → see `telegram-bridge/AGENTS.md`"* — and keep only
+project-specific facts (the scheduled-task name, the task-log path) there. Don't
+duplicate this contract into the host's project memory (a vendored `AGENTS.md` in
+a subfolder is not always auto-discovered, so the explicit pointer matters).
+
+> **Where this folder's files resolve.** By default the scripts read `.env` and
+> write their state files (`.telegram-offset.json`, `.telegram-session.lock`,
+> `telegram-bridge.log`, `telegram-context.md`, `inbox/`) **in this folder** —
+> fully self-contained, nothing leaks to the host project root. If you'd rather
+> centralise state at the project root, set `TELEGRAM_BRIDGE_ROOT=/abs/path` (or
+> put it in `.env`); all scripts then resolve there. All commands below assume
+> you run them with this folder as the script path, e.g. `node
+> telegram-bridge/telegram-poll.mjs …` from the project root.
 
 ## First: which scenario are you in? (setup vs. running)
 
@@ -56,10 +68,10 @@ already exists; only this project is new.
 > you the learning curve, not the bot.
 
 → Steps: (1) create a **new** bot in [@BotFather](https://t.me/BotFather)
-(`/newbot`) for this project; (2) copy the four `.mjs` scripts into this repo
-(set `TELEGRAM_BRIDGE_ROOT` if you embed them in a subfolder); (3) put the **new
-token** plus your **existing chat id** in this project's `.env`; (4) create the
-scheduled poll task. Reuse the chat id (it's just *you*); never reuse the token.
+(`/newbot`) for this project; (2) copy this `telegram-bridge/` folder into the
+repo; (3) put the **new token** plus your **existing chat id** in this folder's
+`.env`; (4) create the scheduled poll task. Reuse the chat id (it's just *you*);
+never reuse the token.
 
 **Scenario B — fresh install on this machine** (no bridge anywhere yet). →
 Follow the README *Setup*: create a bot with BotFather, then capture your chat id
@@ -78,7 +90,7 @@ You are the <PROJECT NAME> Telegram bridge — the two-way link between me and
 Cowork over Telegram. Each run, listen for my messages, act on them, and reply
 to me on Telegram. You have no memory of previous runs.
 
-Follow cowork_telegram/AGENTS.md exactly as the operating contract: read the
+Follow telegram-bridge/AGENTS.md exactly as the operating contract: read the
 conversation memory to recover the thread, pick a run owner id, do the config
 check, then run the lock-based listen → handle → reply → adaptive-cadence loop.
 When the chat goes cold, append a short memory summary, release the lock, and
@@ -93,10 +105,10 @@ and to do it (or grant it) there. (Git deletes go via the host publish mechanism
 which runs native git and raises no prompt — see Safety.)
 
 Project-specific facts:
-- Scripts live in: <PATH TO SCRIPTS, e.g. backend/scripts/ — else repo root>
-  (if embedded in a subfolder, set TELEGRAM_BRIDGE_ROOT to the repo root so
-  state files resolve there, and prefix script paths accordingly).
-- .env (with TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID) lives at the repo root.
+- Scripts live in: <PATH TO THE telegram-bridge/ FOLDER, e.g. telegram-bridge/>
+  (state files resolve inside that folder by default; set TELEGRAM_BRIDGE_ROOT to
+  the repo root instead if you want state centralised there).
+- .env (with TELEGRAM_BOT_TOKEN + TELEGRAM_CHAT_ID) lives in that folder.
 - Task log to append one line per run: <PATH TO TASK LOG, e.g. scheduled-task.log>
 ```
 
@@ -251,9 +263,8 @@ message (text/caption + metadata) is never dropped.
 The Safety section lists what to avoid because it raises a Cowork UI prompt. The
 flip side matters just as much: **most ordinary tool calls are pre-authorised in
 an unattended run and raise no prompt** — reading files, running shell commands in
-the granted folders, fetching URLs, publishing via the host's git mechanism
-(gitbroker), and **web search**. Do not refuse these or claim you "can't" — you
-can.
+the granted folders, fetching URLs, publishing via the host's git mechanism, and
+**web search**. Do not refuse these or claim you "can't" — you can.
 
 - **Web search works.** It does not require user permission and raises no UI
   prompt. When asked to look something up, do it and reply with the result.
@@ -298,10 +309,10 @@ Whether you then **open** it depends on the caption/intent:
   attempt such an action. If a request needs one, do **not** try it: reply to the
   user that it requires the Cowork UI and that they should do it (or grant it)
   there, then carry on with whatever else you can. (Git deletes go via the host's
-  publish mechanism — e.g. gitbroker running natively — which raises no prompt.)
-  In particular, **creating or editing a scheduled task is itself a UI-prompt
-  action** — don't do it from a telegram session; ask the user to make the change
-  in the Cowork UI.
+  publish mechanism — a native git-publish broker running on the host — which
+  raises no prompt.) In particular, **creating or editing a scheduled task is
+  itself a UI-prompt action** — don't do it from a telegram session; ask the user
+  to make the change in the Cowork UI.
 
 ## Conversation memory (across runs)
 
@@ -323,10 +334,10 @@ printf '%s' "$SUMMARY" | node telegram-context.mjs append   # …or pipe via std
   chat handled nothing, so skip the append.)
 - Entries are **newest-first** and auto-trimmed to the most recent
   `TELEGRAM_CONTEXT_MAX_ENTRIES` (default 30), so the file never bloats.
-- The log is **per-project, local-only runtime state** — it lives at the repo
-  root next to `.env` and is **gitignored** (add `telegram-context.md` to the
-  project's `.gitignore`). Only this *mechanism* (the script + this contract) is
-  shared between projects, never one project's memory.
+- The log is **per-project, local-only runtime state** — it lives in this folder
+  next to `.env` and is **gitignored** (`telegram-context.md`). Only this
+  *mechanism* (the script + this contract) is shared between projects, never one
+  project's memory.
 
 ## Per-run log line
 

@@ -1,14 +1,41 @@
 # cowork-telegram
 
-> 🤖 **Agents:** your operating contract is [`AGENTS.md`](./AGENTS.md) — read that, not this README. (This README is for humans.)
+> 🤖 **Agents:** your operating contract is [`telegram-bridge/AGENTS.md`](./telegram-bridge/AGENTS.md) — read that, not this README. (This README is for humans.)
+
+## Repository layout (self-scoping)
+
+The whole bridge lives in one self-named folder so it drops into any host project
+without colliding with other vendored utilities:
+
+```
+cowork-telegram/               ← repo root: human docs
+  README.md                    ·  this file (for humans)
+  telegram-bridge/             ← the drop-in folder (self-contained)
+    AGENTS.md                  ·  the agent's operating contract
+    telegram.mjs               ·  shared library
+    telegram-send.mjs          ·  Claude → you
+    telegram-poll.mjs          ·  you → Claude
+    telegram-lock.mjs          ·  overlap guard
+    telegram-context.mjs       ·  conversation memory
+    broker-publish.mjs         ·  optional publish client
+    .env.example               ·  copy to .env (token + chat id)
+```
+
+**To wire the bridge into a project, copy the whole `telegram-bridge/` folder in**
+and leave it intact. By default it keeps its `.env` and local state inside that
+folder (nothing leaks to the host root); set `TELEGRAM_BRIDGE_ROOT` to centralise
+state at the repo root instead. Because it's a self-named folder carrying its own
+`AGENTS.md`, it never collides with another vendored utility — see the
+*Self-scoping convention* in [`telegram-bridge/AGENTS.md`](./telegram-bridge/AGENTS.md).
+The command examples below assume you run them from inside `telegram-bridge/`.
 
 A small, **dependency-free** two-way Telegram bridge for Cowork (Claude) projects.
 It lets a Cowork agent message you on Telegram, and lets a scheduled task pick up
 your replies and act on them — chat, status queries, or "go do this" requests.
 
 No off-the-shelf Telegram connector needed: this talks straight to the Telegram
-Bot API over plain HTTPS using Node's global `fetch` (Node 18+). Drop the four
-`.mjs` files into any project and you have a reusable bridge.
+Bot API over plain HTTPS using Node's global `fetch` (Node 18+). Drop the
+`telegram-bridge/` folder into any project and you have a reusable bridge.
 
 ```
 Claude → you   sendMessage()   (telegram-send.mjs)
@@ -24,7 +51,7 @@ you → Claude   pollUpdates()   (telegram-poll.mjs, run by a scheduled task)
 | `telegram-poll.mjs` | CLI — you → Claude. Long-polls for your new messages, prints them as JSON, advances the offset so each is handled exactly once. |
 | `telegram-lock.mjs` | CLI — overlap guard. Keeps one run's lock warm across listen → process → reply so a concurrent scheduled tick yields. |
 | `telegram-context.mjs` | CLI — conversation memory. Reads/appends a small rolling log of run summaries (`telegram-context.md`, gitignored) so each stateless run can recover the thread. `read [--entries N]` / `append [--text "…"]`. |
-| `broker-publish.mjs` | CLI (optional) — commit & push this repo via a [gitbroker](https://github.com/paullewis-borman/gitbroker) service running on your machine, instead of running native git in the sandbox. See [Publishing via gitbroker](#publishing-via-gitbroker-optional). |
+| `broker-publish.mjs` | CLI (optional) — commit & push this repo via a native git-publish broker service running on your machine, instead of running native git in the sandbox. See [Publishing via a git-publish broker](#publishing-via-a-git-publish-broker-optional). |
 
 ## Point an AI agent at this repo (which scenario?)
 
@@ -159,23 +186,26 @@ are treated as free. The same principle keeps the bridge safe to run unattended.
 | `.telegram-session.lock` | Owner-token overlap guard (see above). |
 | `telegram-bridge.log` | Per-action trace (`LISTEN.start`, `LOCK.acquired/busy/released`, `POLL.chunk`, `RECV`, `SEND`, …) — `tail -f` it to debug responsiveness. |
 
-## Embedding in a subfolder
+## State location (self-contained by default)
 
 By default the scripts read `.env` and write their state files in **their own
-directory**. If you copy them into a subfolder (e.g. `backend/scripts/`) but want
+directory** — i.e. inside `telegram-bridge/`, so the bridge is fully
+self-contained and nothing leaks to the host project root. If you'd rather keep
 state at your project root, set `TELEGRAM_BRIDGE_ROOT=/abs/path/to/project` in
 the environment (or `.env`).
 
-## Publishing via gitbroker (optional)
+## Publishing via a git-publish broker (optional)
 
 If a Cowork scheduled task needs to **commit and push changes back to this
 repo**, do **not** run `git add/commit/push` inside the Cowork sandbox. On a
 bindfs-mounted working tree, in-sandbox git is fragile: it leaves un-removable
 `.git/index.lock` files and hits "Operation not permitted" during object/lock
-cleanup, which can wedge the repo. Instead, hand the git work to
-[**gitbroker**](https://github.com/paullewis-borman/gitbroker) — a tiny native
-service running on your own machine that performs git in the real folder with
-your own credentials. `broker-publish.mjs` is the client for it.
+cleanup, which can wedge the repo. Instead, hand the git work to a **native
+git-publish broker** — a tiny service running on your own machine that performs
+git in the real folder with your own credentials, exposing a `POST /publish`
+HTTP endpoint authenticated by a per-repo secret. `broker-publish.mjs` is a
+self-contained client for any such broker (configured separately on the host);
+it needs only the `BROKER_SECRET` in this folder's `.env`.
 
 ### What it does
 
@@ -209,23 +239,25 @@ earns its place.
 ### Usage
 
 ```bash
-# commit one or more files and push
-node broker-publish.mjs --message "update telegram bridge" --add telegram.mjs --add README.md
+# commit one or more files and push (paths are relative to the git repo root)
+node telegram-bridge/broker-publish.mjs --message "update telegram bridge" \
+  --add telegram-bridge/telegram.mjs --add README.md
 
 # stage deletions too
-node broker-publish.mjs --message "drop old script" --rm old-thing.mjs
+node telegram-bridge/broker-publish.mjs --message "drop old script" --rm old-thing.mjs
 
 # point at a known broker (skips discovery)
-node broker-publish.mjs --message "msg" --add file --url http://192.168.1.10:4747
+node telegram-bridge/broker-publish.mjs --message "msg" --add file --url http://192.168.1.10:4747
 ```
 
 Exit `0` means published (or nothing to commit); non-zero prints why (e.g.
-`could not reach gitbroker` if the host is asleep). Paths are relative to the
-repo root. `BROKER_SECRET` is never printed.
+`could not reach the publish broker` if the host is asleep). `--add`/`--rm` paths
+are relative to the **git repo root**; `BROKER_SECRET` is never printed.
 
-> **Note:** `broker-publish.mjs` here resolves the repo root as its **own
-> directory** (these scripts live at the repo root). If you relocate it into a
-> subfolder, adjust the `REPO` constant near the top accordingly.
+> **Note:** `broker-publish.mjs` reads its `.env`/`.broker-host` from its **own
+> folder** (`telegram-bridge/`). The `--add`/`--rm` paths are relative to the git
+> repo root (the broker resolves them on the host), so it works wherever the
+> folder is dropped — no path constant to adjust.
 
 ## Safety notes
 

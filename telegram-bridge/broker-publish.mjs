@@ -1,12 +1,14 @@
 #!/usr/bin/env node
-// broker-publish.mjs — publish this repo via the gitbroker service.
+// broker-publish.mjs — publish this repo via a native git-publish broker service.
 //
-// The scheduled tasks run inside the Cowork sandbox, where committing/pushing
-// on the bindfs mount is fragile and deletes are permission-gated. Instead of
-// doing git here, they call the native gitbroker running on Paul's Mac, which
-// runs git add/commit/push (and git rm) in the real folder with Paul's own
-// credentials. This helper wraps that call: it finds the broker, authenticates
-// with BROKER_SECRET from .env, and POSTs /publish.
+// Optional helper. The scheduled tasks run inside the Cowork sandbox, where
+// committing/pushing on the bindfs mount is fragile and deletes are
+// permission-gated. Instead of doing git here, they call a native git-publish
+// broker running on the operator's host, which runs git add/commit/push (and
+// git rm) in the real folder with the operator's own credentials. This helper
+// wraps that call: it finds the broker, authenticates with BROKER_SECRET from
+// .env, and POSTs /publish. (The broker is configured separately on the host;
+// this client only needs its BROKER_SECRET.)
 //
 // Usage:
 //   node broker-publish.mjs --message "msg" [--add <path>]... [--rm <path>]... [--allow-empty] [--url http://host:port]
@@ -24,7 +26,11 @@ import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));   // fileURLToPath decodes %20 etc. (e.g. "Schvitz Website")
-const REPO = SCRIPT_DIR;                                     // scripts live at the repo root in this project
+// Self-contained: .env (BROKER_SECRET) and the .broker-host cache live in THIS
+// folder, alongside the script. git pathspecs in --add/--rm are always relative
+// to the git repo root (the broker resolves them there) regardless of where this
+// folder sits, so the helper itself never needs to know the repo root.
+const REPO = SCRIPT_DIR;
 const CACHE = path.join(REPO, '.broker-host');
 
 // --- args -------------------------------------------------------------------
@@ -105,7 +111,7 @@ async function isBroker(url) {
 (async () => {
   let base = null;
   for (const url of candidates()) { if (await isBroker(url)) { base = url; break; } }
-  if (!base) { console.error('ERROR: could not reach gitbroker on any candidate address (is the Mac awake and the agent running?)'); process.exit(2); }
+  if (!base) { console.error('ERROR: could not reach the publish broker on any candidate address (is the host awake and the broker running?)'); process.exit(2); }
 
   const payload = { message: opts.message };
   if (opts.add.length) payload.pathspec = opts.add;

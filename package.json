@@ -8,19 +8,16 @@
     "node": ">=18"
   },
   "bin": {
-    "telegram-send": "./telegram-send.mjs",
-    "telegram-poll": "./telegram-poll.mjs",
-    "telegram-lock": "./telegram-lock.mjs"
+    "telegram-send": "./telegram-bridge/telegram-send.mjs",
+    "telegram-poll": "./telegram-bridge/telegram-poll.mjs",
+    "telegram-lock": "./telegram-bridge/telegram-lock.mjs"
   },
   "scripts": {
-    "send": "node telegram-send.mjs",
-    "poll": "node telegram-poll.mjs --once",
-    "lock:status": "node telegram-lock.mjs status"
+    "send": "node telegram-bridge/telegram-send.mjs",
+    "poll": "node telegram-bridge/telegram-poll.mjs --once",
+    "lock:status": "node telegram-bridge/telegram-lock.mjs status"
   },
   "files": [
-    "telegram.mjs",
-    "telegram-send.mjs",
-    "telegram-poll.mjs",
-    "telegram-lock.mjs"
+    "telegram-bridge/"
   ]
 }
