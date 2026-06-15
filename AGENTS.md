@@ -227,6 +227,25 @@ message (text/caption + metadata) is never dropped.
   ambiguous or destructive (deletes, history rewrites), DON'T guess — ask for
   confirmation and wait for the next message.
 
+### Tools that DO work unattended (you are not as locked-down as you think)
+
+The Safety section lists what to avoid because it raises a Cowork UI prompt. The
+flip side matters just as much: **most ordinary tool calls are pre-authorised in
+an unattended run and raise no prompt** — reading files, running shell commands in
+the granted folders, fetching URLs, publishing via the host's git mechanism
+(gitbroker), and **web search**. Do not refuse these or claim you "can't" — you
+can.
+
+- **Web search works.** It does not require user permission and raises no UI
+  prompt. When asked to look something up, do it and reply with the result.
+- **Deferred tools must be loaded before use — "not in my tool list" ≠
+  "blocked".** Some tools (e.g. `WebSearch`, `mcp__workspace__web_fetch`) are
+  *deferred*: their schemas aren't loaded at start, so they aren't directly
+  callable yet. That is NOT a permission block. Load the schema first with
+  `ToolSearch` (query `select:WebSearch`, or keyword search), then call the tool
+  normally. If you ever think you can't do a web search, the cause is almost
+  always that you skipped this step — load it via ToolSearch and proceed.
+
 ### Files: read vs. just store (don't waste tokens)
 
 A file always lands on disk at `media.localPath` first — that costs nothing.
