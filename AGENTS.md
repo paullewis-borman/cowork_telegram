@@ -14,6 +14,25 @@ in a scheduled task. It assumes a human has already done the one-time setup in
 > project-specific facts (the scheduled-task name, where the scripts are
 > embedded) locally.
 
+> **When embedding into a host project — keep this file in its own named
+> folder.** `AGENTS.md` is a magic, auto-discovered filename that agents treat as
+> *whole-project* instructions. If you vendor two utilities that each ship an
+> `AGENTS.md` into the **same** folder, they collide and an agent merges their
+> contracts. The fix: drop this utility under a folder named for it and keep its
+> `AGENTS.md` inside —
+>
+> ```
+> tools/
+>   telegram-bridge/AGENTS.md   ← this file
+>   gitbroker/AGENTS.md         ← the other utility, separate folder
+> ```
+>
+> Nested AGENTS.md is nearest-wins: an agent reads only the one closest to what
+> it's touching, never sibling files. **Hard rule: never flatten two utilities
+> into one shared folder** — that is exactly what re-creates the clash. The host's
+> root `AGENTS.md`/`CLAUDE.md` should point explicitly at each path (a vendored
+> `AGENTS.md` in a subfolder is not always auto-discovered).
+
 All commands assume you run from the bridge root (where `.env` lives). If the
 scripts are embedded in a subfolder (e.g. `backend/scripts/`), prefix the path
 accordingly and set `TELEGRAM_BRIDGE_ROOT` so state files resolve to the project

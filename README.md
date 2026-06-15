@@ -1,5 +1,7 @@
 # cowork-telegram
 
+> 🤖 **Agents:** your operating contract is [`AGENTS.md`](./AGENTS.md) — read that, not this README. (This README is for humans.)
+
 A small, **dependency-free** two-way Telegram bridge for Cowork (Claude) projects.
 It lets a Cowork agent message you on Telegram, and lets a scheduled task pick up
 your replies and act on them — chat, status queries, or "go do this" requests.
