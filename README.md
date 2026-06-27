@@ -18,6 +18,8 @@ cowork-telegram/               ← repo root: human docs
     telegram-lock.mjs          ·  overlap guard
     telegram-context.mjs       ·  conversation memory
     broker-publish.mjs         ·  optional publish client
+    watchdog-mvp.mjs           ·  alternative runtime: standalone always-on listener (prototype)
+    MVP-TEST-PLAN.md           ·  open questions + test steps for the watchdog prototype
     .env.example               ·  copy to .env (token + chat id)
 ```
 
@@ -52,6 +54,7 @@ you → Claude   pollUpdates()   (telegram-poll.mjs, run by a scheduled task)
 | `telegram-lock.mjs` | CLI — overlap guard. Keeps one run's lock warm across listen → process → reply so a concurrent scheduled tick yields. |
 | `telegram-context.mjs` | CLI — conversation memory. Reads/appends a small rolling log of run summaries (`telegram-context.md`, gitignored) so each stateless run can recover the thread. `read [--entries N]` / `append [--text "…"]`. |
 | `broker-publish.mjs` | CLI (optional) — commit & push this repo via a native git-publish broker service running on your machine, instead of running native git in the sandbox. See [Publishing via a git-publish broker](#publishing-via-a-git-publish-broker-optional). |
+| `watchdog-mvp.mjs` | **Prototype.** An alternative to the scheduled-task model below: a single always-on Node process you run yourself that long-polls continuously and spawns `claude -p` directly per message. See [Alternative: a standalone watchdog process](#alternative-a-standalone-watchdog-process-experimental). |
 
 ## Point an AI agent at this repo (which scenario?)
 
@@ -177,6 +180,62 @@ holding it.
 is permission-gated and fails in an unattended run. So the lock is never
 deleted — "release" *writes* a `released:true` marker, and stale/released locks
 are treated as free. The same principle keeps the bridge safe to run unattended.
+
+## Alternative: a standalone watchdog process (experimental)
+
+Everything above runs the inbound listener as a **Cowork scheduled task** — a
+`*/5 * * * *` cron tick that wakes up, checks for messages, and goes back to
+sleep. There's a second way to run it: **`watchdog-mvp.mjs`**, a single
+always-on Node process you start yourself in a terminal on your own machine
+(not inside Cowork). It long-polls Telegram continuously — no cron, no lock
+file, no concurrent-run problem, since there's only ever one process — and on
+each incoming message it spawns `claude -p` directly against the host
+project, then sends back whatever it returns.
+
+```bash
+cd telegram-bridge
+WATCHDOG_PROJECT_DIR="/abs/path/to/host/project" node watchdog-mvp.mjs
+```
+
+Why you might reach for this instead:
+
+- **Cost.** A scheduled task spends a session waking up every 5 minutes
+  whether or not you've actually messaged it. The watchdog only spends
+  anything when a real message arrives.
+- **It runs natively on your machine, not in the Cowork sandbox** — so it
+  needs your own, separately-authenticated `claude` CLI (`claude login`), not
+  Cowork's bundled engine. The two are isolated from each other: different
+  processes, different credential stores, no shared state.
+
+What testing so far has shown (full detail in `MVP-TEST-PLAN.md`): headless
+`claude -p` runs with no login prompt; `--resume <session_id>` reliably
+carries conversation context across separate process invocations, so the
+watchdog persists the last session id (`.watchdog-session.json`) and resumes
+it, falling back to a fresh session after `WATCHDOG_IDLE_RESET_MIN` minutes
+idle (default 6h); and the host project's `CLAUDE.md` loads automatically,
+same as it would in Cowork. Cost is lumpy rather than flat: a *cold* call
+(fresh session) runs roughly **$0.075**, almost all of it a one-time
+~12k-token cache write of the system prompt + `CLAUDE.md`; a *warm*
+`--resume` call inside that cache's window drops to roughly **$0.007**, since
+it reads the cache instead of rewriting it. Whether that figure is an actual
+charge or just an informational draw against a Pro/Max plan's usage allowance
+depends on how the `claude` CLI is authenticated — still worth checking
+per-install.
+
+⚠️ **Known gap:** unlike the scheduled-task path, the watchdog does **not**
+inject this folder's `AGENTS.md` contract into the prompt it sends — each
+message goes to `claude -p` close to as-is (plus the host project's own
+`CLAUDE.md`, auto-loaded). The safety rules, file read-vs-store guidance, and
+reply conventions documented in `AGENTS.md` are not yet enforced in this
+mode. Don't assume parity between the two runtimes.
+
+⚠️ **The same per-bot rule still applies.** Telegram's `getUpdates` offset is
+global per bot — run *either* the scheduled task *or* the watchdog against a
+given bot, never both at once; they'll steal each other's messages.
+
+**Status: prototype**, not yet hardened into a supervised (e.g. launchd)
+service. See `MVP-TEST-PLAN.md` for the open questions this is resolving and
+what "done" looks like before it replaces the scheduled-task model.
 
 ## Local state & logging (all gitignored)
 

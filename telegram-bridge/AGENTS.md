@@ -116,6 +116,50 @@ Notes: each project needs its **own** bot token (one bot ≠ many projects — s
 Scenario A); the chat id is just *you* and is reused. If `.env` is unconfigured
 the run exits quietly, so an enabled task is harmless before setup is finished.
 
+## Alternative runtime: standalone watchdog (no scheduled task)
+
+Everything in *Scheduled-task setup template* above and *The run lifecycle*
+below describes one deployment model: a Cowork cron tick that wakes up, runs
+`telegram-poll.mjs` under the lock, and goes back to sleep. There is a second
+model that doesn't involve Cowork at all: **`watchdog-mvp.mjs`**, a single
+always-on Node process the human runs themselves in a terminal on their own
+machine. It long-polls continuously (no lock needed — only one process ever
+runs against the bot) and, on each message, spawns `claude -p` directly
+against the host project (`--resume <session_id>` for continuity across
+messages), then sends the result back over Telegram itself — no `AGENTS.md`-
+following agent runs the listen/reply loop in this mode; a plain Node script
+does.
+
+If you're an agent asked to set this up or explain it: this mode replaces the
+entire run lifecycle below (steps 0–5) with one Node process — there is no
+scheduled task to create and no lock for you to manage. Point the human at:
+
+```bash
+cd telegram-bridge
+WATCHDOG_PROJECT_DIR="/abs/path/to/host/project" node watchdog-mvp.mjs
+```
+
+**This contract does not (yet) apply inside watchdog mode.** Each Telegram
+message reaches `claude -p` as a near-bare prompt — that spawned agent has
+only the host project's own `CLAUDE.md` (auto-loaded, confirmed by testing)
+and whatever `--allowedTools` the watchdog was started with. It does **not**
+read this `AGENTS.md`, so the safety rules, conversation-memory mechanism,
+and reply conventions below are not enforced for it. Don't assume parity
+between the two runtimes, and don't tell a human it's safe to treat them the
+same until that gap is closed (either by injecting this contract into the
+spawned prompt, or by documenting a reduced contract specific to this mode).
+
+**The per-bot constraint still applies**: never run the scheduled task and
+the watchdog against the same bot at the same time — `getUpdates`'s offset is
+global per bot and they will steal each other's messages.
+
+Status: **prototype** — see `MVP-TEST-PLAN.md` in this folder for what's been
+verified (headless auth with no login prompt, `--resume` continuity across
+separate process invocations, automatic `CLAUDE.md` load) and what's still
+open (hardening into a supervised process, the contract-injection gap above,
+and confirming whether reported cost is a real charge or an informational
+draw against a subscription's usage allowance).
+
 ## The run lifecycle
 
 Each scheduled run is stateless — it listens for new messages, acts on them,
