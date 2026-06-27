@@ -153,12 +153,58 @@ spawned prompt, or by documenting a reduced contract specific to this mode).
 the watchdog against the same bot at the same time — `getUpdates`'s offset is
 global per bot and they will steal each other's messages.
 
-Status: **prototype** — see `MVP-TEST-PLAN.md` in this folder for what's been
-verified (headless auth with no login prompt, `--resume` continuity across
-separate process invocations, automatic `CLAUDE.md` load) and what's still
-open (hardening into a supervised process, the contract-injection gap above,
-and confirming whether reported cost is a real charge or an informational
-draw against a subscription's usage allowance).
+Status: **prototype validated, supervision example exists** — see
+`MVP-TEST-PLAN.md` in this folder for what's been verified (headless auth
+with no login prompt, `--resume` continuity across separate process
+invocations, automatic `CLAUDE.md` load) and what's still open (the
+contract-injection gap above, and confirming whether reported cost is a real
+charge or an informational draw against a subscription's usage allowance).
+"Hardening into a supervised process" is no longer fully open: the Schvitz
+project's `com.schvitz.telegram-watchdog.plist` (added 2026-06-27) is a
+working launchd LaunchAgent for this exact script — see below.
+
+### Supervising the watchdog with launchd
+
+A foreground terminal only keeps `watchdog-mvp.mjs` running as long as that
+terminal stays open. For an unattended, reboot-surviving deployment, wrap it
+in a launchd LaunchAgent (same pattern as gitbroker's own service). **There is
+no generic template file in this repo yet** — Schvitz's
+`com.schvitz.telegram-watchdog.plist` is the worked reference. If you're an
+agent setting this up for a **new** project, copy that plist and adapt it:
+
+**Change per project:**
+- `Label` — `com.<project>.telegram-watchdog` (must be unique; launchd keys
+  off this).
+- `ProgramArguments` — absolute path to *that project's own embedded copy* of
+  `watchdog-mvp.mjs` (each host project carries its own copy of this folder
+  per the self-scoping convention — give each project its own LaunchAgent
+  pointed at its own copy, don't share one script path across projects).
+- `WorkingDirectory` / `WATCHDOG_PROJECT_DIR` — that project's repo root.
+- `StandardOutPath` / `StandardErrorPath` — a project-specific filename under
+  `~/Library/Logs/` (don't reuse another project's log file).
+- The bot token in that project's `.env` — every project needs its **own**
+  bot (per *Setup* above); never point two watchdogs at the same token.
+
+**Stays the same across projects:**
+- Absolute `node` / `claude` binary paths (launchd's `PATH` is minimal — find
+  them once with `which node` / `which claude` and hardcode them).
+- `KeepAlive` + `RunAtLoad` (restarts itself, survives reboots).
+- The one-time Full Disk Access grants for `node` and `claude` in System
+  Settings → Privacy & Security (`claude` may need its own grant, separate
+  from `node`'s) — once granted to those binaries, they apply no matter which
+  project's LaunchAgent invokes them.
+
+**Once the new LaunchAgent is confirmed working** (message that project's
+bot, get a reply, close the terminal, confirm it still replies — ideally
+confirm across a reboot too): disable that project's old cron-based scheduled
+task (the `*/5 * * * *` listener), the same way `schvitz-telegram-poll` was
+retired in favour of its watchdog. Never leave both running against the same
+bot — see the per-bot constraint above.
+
+If you do this generalization work for a project, consider promoting it into
+an actual `com.example.telegram-watchdog.plist.template` in this folder so
+the next project doesn't have to reverse-engineer Schvitz's copy from
+scratch — that's still outstanding.
 
 ## The run lifecycle
 
