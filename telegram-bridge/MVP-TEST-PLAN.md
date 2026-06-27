@@ -1,4 +1,6 @@
-# Telegram watchdog MVP — test plan (not yet adopted)
+# Telegram watchdog MVP — test plan (adopted 2026-06-27 for Schvitz — see its
+# com.schvitz.telegram-watchdog.plist for the launchd hardening this enabled;
+# install/verification on Paul's Mac still pending)
 
 Goal: before building a real always-on service, resolve three unknowns. All
 steps run in a **Terminal on the Mac**, not inside Cowork — Cowork's sandbox

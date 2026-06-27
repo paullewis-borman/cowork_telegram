@@ -233,9 +233,18 @@ mode. Don't assume parity between the two runtimes.
 global per bot — run *either* the scheduled task *or* the watchdog against a
 given bot, never both at once; they'll steal each other's messages.
 
-**Status: prototype**, not yet hardened into a supervised (e.g. launchd)
-service. See `MVP-TEST-PLAN.md` for the open questions this is resolving and
-what "done" looks like before it replaces the scheduled-task model.
+**Status: a hardened example exists, not yet a generic template here.** The
+Schvitz project's `com.schvitz.telegram-watchdog.plist` (added 2026-06-27) is
+a working launchd LaunchAgent for this script, following the same pattern as
+gitbroker's own launchd service: absolute `node`/`claude` paths (launchd's
+PATH is minimal), logs to `~/Library/Logs/` rather than the repo (same
+TCC/Full-Disk-Access reasoning — `claude` may need its own grant, separate
+from `node`'s), and `KeepAlive`+`RunAtLoad` so it restarts itself and survives
+reboots. It hasn't yet been generalised into a copy-paste template in this
+repo, and as of this writing Paul hasn't yet installed/verified it survives a
+terminal close or reboot on a live deployment. See `MVP-TEST-PLAN.md` for the
+open questions this resolved and what's still outstanding before the launchd
+model fully replaces the scheduled-task model project-wide.
 
 ## Local state & logging (all gitignored)
 

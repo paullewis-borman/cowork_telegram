@@ -33,9 +33,14 @@
  *
  * What this does NOT do yet (deliberately, for the MVP):
  *   - No media/file handling (text messages only).
- *   - No launchd/supervision — you run it by hand and watch the terminal.
  *   - No multi-bot/multi-project routing — one watchdog per bot, same as the
  *     existing Cowork-task convention.
+ *
+ * Supervision: not yet generalised into a copy-paste template in this repo.
+ * For a working example, see the Schvitz project's
+ * com.schvitz.telegram-watchdog.plist — it follows the same pattern as
+ * gitbroker's own launchd service (absolute node/claude paths, logs to
+ * ~/Library/Logs, KeepAlive + RunAtLoad). Adapt its paths per-project.
  */
 
 import { spawn } from 'child_process';
