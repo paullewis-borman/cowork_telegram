@@ -31,8 +31,18 @@
  *                                --resume (avoids resuming a stale/huge
  *                                context). Default: 360 (6h).
  *
+ * Media (added 2026-06-28):
+ *   - Inbound: pollUpdates() already downloads photos/documents to the inbox
+ *     folder (see telegram.mjs) and sets media.localPath — this script now
+ *     passes that path to claude -p instead of ignoring it, and no longer
+ *     skips captionless attachments.
+ *   - Outbound: there's no structured "attachment" return value from
+ *     `claude -p`, so sending a file back is done by the spawned Claude
+ *     itself: the prompt tells it it can run
+ *     `node "<this-folder>/telegram-send.mjs" --file <path>` via Bash. The
+ *     watchdog's own final sendMessage() call still only ever relays text.
+ *
  * What this does NOT do yet (deliberately, for the MVP):
- *   - No media/file handling (text messages only).
  *   - No multi-bot/multi-project routing — one watchdog per bot, same as the
  *     existing Cowork-task convention.
  *
@@ -46,12 +56,15 @@
 import { spawn } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import {
   loadDotEnv, pollUpdates, sendMessage, logBridge, REPO_ROOT,
 } from './telegram.mjs';
 
 loadDotEnv();
 
+const BRIDGE_DIR = path.dirname(fileURLToPath(import.meta.url));
+const SEND_SCRIPT = path.join(BRIDGE_DIR, 'telegram-send.mjs');
 const PROJECT_DIR = process.env.WATCHDOG_PROJECT_DIR
   ? path.resolve(process.env.WATCHDOG_PROJECT_DIR)
   : process.cwd();
@@ -122,11 +135,39 @@ function runClaude(prompt, sessionId) {
   });
 }
 
+/**
+ * Build the actual `claude -p` prompt from a poll message: a short bridge
+ * capability note (always, so a resumed session is reminded every turn),
+ * an inbound-media note if this message carried a file, then the user's
+ * own text (or a placeholder if it was a captionless attachment).
+ */
+function buildPrompt(msg) {
+  const parts = [
+    `[Telegram bridge: to send a photo or file back to the user, run ` +
+    `node "${SEND_SCRIPT}" --file <path> [--caption "..."] via Bash — ` +
+    `images send inline automatically, anything else as a document.]`,
+  ];
+  if (msg.media) {
+    const m = msg.media;
+    const where = m.localPath
+      ? `downloaded to ${m.localPath}`
+      : `(download failed: ${m.downloadError || 'unknown error'})`;
+    parts.push(
+      `[User sent a ${m.kind}${m.fileName ? ` ("${m.fileName}")` : ''}` +
+      `${m.mimeType ? `, ${m.mimeType}` : ''} — ${where}]`,
+    );
+  }
+  parts.push(msg.text || (msg.media ? '(no caption — see attached file above)' : ''));
+  return parts.join('\n');
+}
+
 async function handleMessage(msg) {
   const session = readSession();
-  console.log(`[watchdog] <- "${msg.text}" (resume=${session.sessionId || 'none, fresh session'})`);
+  const prompt = buildPrompt(msg);
+  const logText = msg.text || (msg.media ? `(${msg.media.kind}, no caption)` : '(empty)');
+  console.log(`[watchdog] <- "${logText}" (resume=${session.sessionId || 'none, fresh session'})`);
   try {
-    const result = await runClaude(msg.text, session.sessionId);
+    const result = await runClaude(prompt, session.sessionId);
     writeSession(result.session_id);
     const cost = result.total_cost_usd != null ? ` ($${Number(result.total_cost_usd).toFixed(4)})` : '';
     console.log(`[watchdog] -> "${(result.result || '').slice(0, 200)}"${cost}`);
@@ -153,10 +194,10 @@ async function main() {
       continue;
     }
     for (const m of messages) {
-      if (m.text) {
+      if (m.text || m.media) {
         await handleMessage(m);
       } else {
-        console.log('[watchdog] skipping non-text message (media handling not wired up in the MVP)');
+        console.log('[watchdog] skipping message with neither text nor media (e.g. a service message)');
       }
     }
   }

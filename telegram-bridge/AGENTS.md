@@ -149,6 +149,15 @@ between the two runtimes, and don't tell a human it's safe to treat them the
 same until that gap is closed (either by injecting this contract into the
 spawned prompt, or by documenting a reduced contract specific to this mode).
 
+**Media (added 2026-06-28):** inbound files are handled the same as in the
+scheduled-task path — `pollUpdates()` downloads them and sets
+`media.localPath` before the watchdog ever sees the message, and it now
+forwards that path to `claude -p` instead of dropping non-text messages.
+There's no structured way for `claude -p` to return an attachment, so sending
+a file back is done by the spawned agent itself, via
+`node telegram-send.mjs --file <path> [--caption "…"]` over Bash; the
+watchdog's prompt-builder reminds it of this capability on every message.
+
 **The per-bot constraint still applies**: never run the scheduled task and
 the watchdog against the same bot at the same time — `getUpdates`'s offset is
 global per bot and they will steal each other's messages.

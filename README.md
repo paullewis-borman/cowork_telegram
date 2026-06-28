@@ -222,6 +222,15 @@ charge or just an informational draw against a Pro/Max plan's usage allowance
 depends on how the `claude` CLI is authenticated — still worth checking
 per-install.
 
+**Media (added 2026-06-28):** inbound photos/documents work the same way as
+in the scheduled-task path — `pollUpdates()` already downloads them and sets
+`media.localPath`, and the watchdog now passes that path through to
+`claude -p` instead of skipping the message. Outbound is different: there's
+no structured "send a file" return value from `claude -p`, so the spawned
+agent sends files back itself, by running `telegram-send.mjs --file <path>
+[--caption "…"]` via Bash — the prompt the watchdog builds reminds it how to
+do this on every turn.
+
 ⚠️ **Known gap:** unlike the scheduled-task path, the watchdog does **not**
 inject this folder's `AGENTS.md` contract into the prompt it sends — each
 message goes to `claude -p` close to as-is (plus the host project's own
