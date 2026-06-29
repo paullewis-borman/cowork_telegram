@@ -139,15 +139,30 @@ cd telegram-bridge
 WATCHDOG_PROJECT_DIR="/abs/path/to/host/project" node watchdog-mvp.mjs
 ```
 
-**This contract does not (yet) apply inside watchdog mode.** Each Telegram
-message reaches `claude -p` as a near-bare prompt — that spawned agent has
-only the host project's own `CLAUDE.md` (auto-loaded, confirmed by testing)
-and whatever `--allowedTools` the watchdog was started with. It does **not**
-read this `AGENTS.md`, so the safety rules, conversation-memory mechanism,
-and reply conventions below are not enforced for it. Don't assume parity
-between the two runtimes, and don't tell a human it's safe to treat them the
-same until that gap is closed (either by injecting this contract into the
-spawned prompt, or by documenting a reduced contract specific to this mode).
+**Contract-injection gap closed (2026-06-29).** Each Telegram message reaches
+`claude -p` carrying `WATCHDOG_CONTRACT` — a condensed version of this
+file's behavioural rules, built into `watchdog-mvp.mjs` and injected into
+every prompt — plus the host project's own `CLAUDE.md` (auto-loaded,
+confirmed by testing) and whatever `--allowedTools` the watchdog was started
+with. The condensed contract carries: never send secrets/tokens over
+Telegram; no human-in-the-loop / Cowork-UI-prompt actions (including
+creating/editing a scheduled task); the file read-vs-just-store decision;
+don't echo/commit received files unless asked; ask before ambiguous or
+destructive requests; short mobile-friendly replies; and a reminder that web
+search, file reads, shell commands, and the publish broker all work
+unattended.
+
+It is still **not** the full document — and isn't meant to be. Orchestration
+mechanics that only make sense for the scheduled-task model (the run-owner
+id, the lock, the poll back-off loop, conversation-memory read/append via
+`telegram-context.mjs`) are this script's own job in watchdog mode (it's a
+single continuous process — no lock needed — and continuity comes from
+`claude -p --resume`, not the rolling-memory file), so they're deliberately
+excluded rather than missing. Don't assume *full* parity between the two
+runtimes — no shared conversation-memory file, no lock — but the
+safety/behaviour layer is now equivalent. See `WATCHDOG_CONTRACT` in
+`watchdog-mvp.mjs` for the exact wording, and keep it in sync with this file
+if either changes.
 
 **Media (added 2026-06-28):** inbound files are handled the same as in the
 scheduled-task path — `pollUpdates()` downloads them and sets
@@ -165,9 +180,10 @@ global per bot and they will steal each other's messages.
 Status: **prototype validated, supervision example exists** — see
 `MVP-TEST-PLAN.md` in this folder for what's been verified (headless auth
 with no login prompt, `--resume` continuity across separate process
-invocations, automatic `CLAUDE.md` load) and what's still open (the
-contract-injection gap above, and confirming whether reported cost is a real
-charge or an informational draw against a subscription's usage allowance).
+invocations, automatic `CLAUDE.md` load) and what's still open (confirming
+whether reported cost is a real charge or an informational draw against a
+subscription's usage allowance). The contract-injection gap noted above is
+now closed.
 "Hardening into a supervised process" is no longer fully open: the Schvitz
 project's `com.schvitz.telegram-watchdog.plist` (added 2026-06-27) is a
 working launchd LaunchAgent for this exact script — see below.

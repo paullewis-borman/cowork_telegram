@@ -42,9 +42,23 @@
  *     `node "<this-folder>/telegram-send.mjs" --file <path>` via Bash. The
  *     watchdog's own final sendMessage() call still only ever relays text.
  *
+ * Safety contract (added 2026-06-29): every prompt now carries
+ * WATCHDOG_CONTRACT, a condensed version of this folder's AGENTS.md
+ * safety/file-handling/reply rules — closes the "watchdog doesn't see
+ * AGENTS.md" gap flagged in AGENTS.md's "Alternative runtime" section and
+ * README's "Known gap" note. It's deliberately NOT the full document:
+ * orchestration mechanics that are specific to the scheduled-task model (the
+ * run-owner id, the lock, the poll back-off loop, conversation-memory
+ * read/append) are this script's own job, not the spawned agent's, so they
+ * stay excluded by design. Only the behavioural rules that matter once a
+ * message reaches `claude -p` are kept.
+ *
  * What this does NOT do yet (deliberately, for the MVP):
  *   - No multi-bot/multi-project routing — one watchdog per bot, same as the
  *     existing Cowork-task convention.
+ *   - No shared conversation-memory file (telegram-context.md) — continuity
+ *     relies solely on `claude -p --resume`, not the rolling-log mechanism
+ *     the scheduled-task path uses.
  *
  * Supervision: not yet generalised into a copy-paste template in this repo.
  * For a working example, see the Schvitz project's
@@ -136,13 +150,46 @@ function runClaude(prompt, sessionId) {
 }
 
 /**
- * Build the actual `claude -p` prompt from a poll message: a short bridge
- * capability note (always, so a resumed session is reminded every turn),
- * an inbound-media note if this message carried a file, then the user's
- * own text (or a placeholder if it was a captionless attachment).
+ * Condensed safety/behaviour contract for watchdog mode — see the "Safety
+ * contract" note in the file header. Injected on every turn (not just fresh
+ * sessions) so a --resume'd session is reminded even though it isn't
+ * re-reading this file from disk. Kept short on purpose: this is a prompt
+ * cost paid on every single message, not a one-time system-prompt cache
+ * write, so it stays a reduced contract rather than the full AGENTS.md.
+ */
+const WATCHDOG_CONTRACT = [
+  '[Telegram bridge — operating rules for this unattended reply:',
+  '- Never send .env contents, tokens, or other secrets over Telegram.',
+  '- No human-in-the-loop actions: anything that would raise a Cowork UI ' +
+    'prompt (file/dir deletes, folder-access requests, plan/approval gates, ' +
+    'creating or editing a scheduled task) hangs silently here — don\'t ' +
+    'attempt it. Tell the user it needs the Cowork UI and to do it there. ' +
+    'Git deletes are fine via the host\'s git-publish broker (no prompt).',
+  '- Files you receive: open/read them only if the message asks for that ' +
+    '("summarise", "what does this say", "take a look"). If the message ' +
+    'just says to save/store/keep it, confirm receipt + location and don\'t ' +
+    'open it. No caption / ambiguous — don\'t auto-open, confirm receipt and ask.',
+  '- Don\'t echo a received file back over Telegram, or commit it to git, ' +
+    'unless explicitly asked.',
+  '- Ambiguous or destructive requests (deletes, history rewrites, ' +
+    'force-pushes) — ask for confirmation, don\'t guess.',
+  '- Keep replies short and mobile-friendly.',
+  '- You are not as locked down as you might think: web search, reading ' +
+    'files, shell commands in granted folders, and the host project\'s ' +
+    'publish/broker mechanism all work unattended here — don\'t refuse or ' +
+    'claim you can\'t.]',
+].join('\n');
+
+/**
+ * Build the actual `claude -p` prompt from a poll message: the watchdog
+ * safety contract and a short bridge capability note (always, so a resumed
+ * session is reminded every turn), an inbound-media note if this message
+ * carried a file, then the user's own text (or a placeholder if it was a
+ * captionless attachment).
  */
 function buildPrompt(msg) {
   const parts = [
+    WATCHDOG_CONTRACT,
     `[Telegram bridge: to send a photo or file back to the user, run ` +
     `node "${SEND_SCRIPT}" --file <path> [--caption "..."] via Bash — ` +
     `images send inline automatically, anything else as a document.]`,

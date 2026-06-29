@@ -231,12 +231,16 @@ agent sends files back itself, by running `telegram-send.mjs --file <path>
 [--caption "…"]` via Bash — the prompt the watchdog builds reminds it how to
 do this on every turn.
 
-⚠️ **Known gap:** unlike the scheduled-task path, the watchdog does **not**
-inject this folder's `AGENTS.md` contract into the prompt it sends — each
-message goes to `claude -p` close to as-is (plus the host project's own
-`CLAUDE.md`, auto-loaded). The safety rules, file read-vs-store guidance, and
-reply conventions documented in `AGENTS.md` are not yet enforced in this
-mode. Don't assume parity between the two runtimes.
+✅ **Known gap closed (2026-06-29):** the watchdog now injects a condensed
+version of this folder's `AGENTS.md` contract (`WATCHDOG_CONTRACT` in
+`watchdog-mvp.mjs`) into every prompt it sends — the safety rules, file
+read-vs-store guidance, and reply conventions, just not the orchestration
+mechanics (run-owner id, lock, poll loop, conversation-memory file) that are
+specific to the scheduled-task model and don't apply to a single always-on
+process. See [AGENTS.md](./telegram-bridge/AGENTS.md#alternative-runtime-standalone-watchdog-no-scheduled-task)
+for the full breakdown of what's included vs. excluded. Still don't assume
+*full* parity between the two runtimes — no shared conversation-memory file,
+no lock — but the safety/behaviour layer is now equivalent.
 
 ⚠️ **The same per-bot rule still applies.** Telegram's `getUpdates` offset is
 global per bot — run *either* the scheduled task *or* the watchdog against a
